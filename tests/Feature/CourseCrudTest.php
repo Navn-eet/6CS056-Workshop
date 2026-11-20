@@ -44,7 +44,7 @@ it('renders the create form', function () {
 
     $response->assertOk()->assertSee('Create Course');
 
-    expect($response->getContent())->toContain('action="/courses"');
+    expect($response->getContent())->toContain('action="'.route('courses.store').'"');
 });
 
 it('stores a valid course with every typed column persisted', function () {
@@ -122,6 +122,12 @@ it('stores an unchecked is_active checkbox as false', function () {
 });
 
 it('shows a single course', function () {
+    // The requested record is the second row: a detail page that rendered the
+    // first course instead of the bound one would show Intro and fail here.
+    Course::factory()->create([
+        'name' => 'Intro to PHP',
+        'description' => 'A gentle introduction.',
+    ]);
     $course = Course::factory()->create([
         'name' => 'Advanced Laravel',
         'description' => 'Deep dive into the framework internals.',
@@ -133,8 +139,11 @@ it('shows a single course', function () {
 
     expect($response->getContent())
         ->toContain('Advanced Laravel')
-        ->toContain('Deep dive into the framework internals.')
-        ->toContain('Course record #'.$course->id);
+        ->toContain('Deep dive into the framework internals.');
+
+    expect($response->getContent())
+        ->not->toContain('Intro to PHP')
+        ->not->toContain('A gentle introduction.');
 });
 
 it('returns 404 for an unknown course', function () {
@@ -295,4 +304,44 @@ it('deletes a course', function () {
     $this->assertDatabaseMissing('courses', ['id' => $course->id]);
 
     expect(Course::count())->toBe(0);
+});
+
+it('renders the same six course fields on the create and edit forms', function () {
+    $course = Course::factory()->create();
+
+    $fields = ['name', 'description', 'duration', 'fee', 'difficulty', 'is_active'];
+
+    foreach (['/courses/create', "/courses/{$course->id}/edit"] as $url) {
+        $content = $this->get($url)->assertOk()->getContent();
+
+        foreach ($fields as $field) {
+            expect($content)->toContain('name="'.$field.'"');
+        }
+    }
+});
+
+it('posts the edit form through PUT to the update route', function () {
+    $course = Course::factory()->create();
+
+    $content = $this->get("/courses/{$course->id}/edit")->assertOk()->getContent();
+
+    expect($content)
+        ->toContain('action="'.route('courses.update', $course).'"')
+        ->toContain('<input type="hidden" name="_method" value="PUT">');
+});
+
+it('renders the delete component contract on the course list', function () {
+    $course = Course::factory()->create();
+
+    $content = $this->get('/courses')->assertOk()->getContent();
+
+    $start = strpos($content, '<form action="'.route('courses.destroy', $course).'" method="POST"');
+
+    expect($start)->not->toBeFalse();
+
+    $form = substr($content, $start, strpos($content, '</form>', $start) - $start);
+
+    expect($form)
+        ->toContain('name="_token"')
+        ->toContain('<input type="hidden" name="_method" value="DELETE">');
 });
