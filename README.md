@@ -1,23 +1,24 @@
-# 6CS056 Workshop 1 — Training Institute
+# 6CS056 Workshop 2 — Training Institute
 
-A Laravel admin application for a training institute, written as coursework for 6CS056 Workshop 1.
-It keeps two registers, students and courses, each with list, detail, create, edit and delete pages,
-on Blade and Tailwind, backed by MySQL. Work on the `workshop-01` branch.
+A Laravel admin application for a training institute, written as coursework for 6CS056 Workshop 2.
+Workshop 1 answered every request from a closure in `routes/web.php`; this version moves each one
+onto a controller. It keeps two registers, students and courses, each with list, detail, create, edit
+and delete pages, on Blade, backed by MySQL. Work on the `workshop-02` branch.
 
 ## Requirements
 
 - PHP 8.3 or newer, with Composer 2; tested on PHP 8.5.4.
 - MySQL 8, reachable at `127.0.0.1:3306`.
-- Node.js 20.19+ or 22.12+, with npm — the range Vite 8 requires.
+- No Node, and no asset build. Every page serves `public/css/app.css` through `asset()`, and no view
+  uses `@vite`.
 
 ## Clone and install
 
 ```bash
 git clone https://github.com/Navn-eet/6CS056-Workshop.git
 cd 6CS056-Workshop
-git switch workshop-01
+git switch workshop-02
 composer install
-npm install
 cp .env.example .env
 php artisan key:generate
 ```
@@ -39,18 +40,26 @@ CREATE DATABASE WorkshopDB_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
 
 ```bash
 php artisan migrate --seed
-php artisan view:clear && npm run build
 php artisan serve
 ```
 
-Then open <http://127.0.0.1:8000>. The seeder leaves six students and six courses, one of the
-courses inactive.
+Then open <http://127.0.0.1:8000>. The seeder leaves six students and six courses; one of the
+courses, Digital Marketing, is inactive.
 
-`view:clear` runs first because `resources/css/app.css` scans compiled views in
-`storage/framework/views`, and a stale one makes Tailwind emit classes no view uses. `npm run build`
-writes the gitignored `public/build`, so a clone needs that build first; `npm run dev` watches assets
-while you edit.
+## Structure
+
+- `app/Http/Controllers/StudentController.php` and `CourseController.php` hold the seven resource
+  actions — `index`, `create`, `store`, `show`, `edit`, `update`, `destroy` — plus one private
+  `rules()` method each, called from both `store` and `update`.
+- `routes/web.php` is two `Route::resource` lines and `/`.
+- `resources/views/components/layouts/app.blade.php` holds the only `<head>`, navbar and footer and
+  loads `public/css/app.css` with `asset()`. Student pages use `<x-layouts.app title="...">`; course
+  pages `@extends('layouts.app')`, whose layout renders that same component.
+- Each resource has one `_form` partial — `student/_form.blade.php`, `course/_form.blade.php`.
+  Inputs, textareas, alerts and delete buttons are the Blade components in
+  `resources/views/components/`.
 
 ## Tests
 
-`php artisan test` runs the Pest suite: 53 tests against the MySQL database `WorkshopDB_test`.
+`php artisan test` runs the Pest suite: 70 tests and 356 assertions against the MySQL database
+`WorkshopDB_test`.
