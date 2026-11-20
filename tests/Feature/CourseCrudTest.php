@@ -246,14 +246,16 @@ it('accepts a duration of exactly 520 weeks', function () {
     expect(Course::firstOrFail()->duration)->toBe(520);
 });
 
-it('rejects a duration above 520 weeks', function () {
-    $response = $this->from('/courses/create')->post('/courses', coursePayload([
-        'duration' => 521,
-    ]));
+it('accepts a duration beyond a full year', function () {
+    // 521 weeks is past the old 520 rule ceiling but well inside the
+    // unsignedInteger column, which is the only thing bounding duration now.
+    $this->post('/courses', coursePayload(['duration' => 521]))
+        ->assertRedirect('/courses')
+        ->assertSessionHasNoErrors();
 
-    $response->assertSessionHasErrors('duration');
+    $this->assertDatabaseHas('courses', ['duration' => 521]);
 
-    expect(Course::count())->toBe(0);
+    expect(Course::firstOrFail()->duration)->toBe(521);
 });
 
 it('accepts a fee of zero', function () {

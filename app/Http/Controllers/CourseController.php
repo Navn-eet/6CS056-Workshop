@@ -60,7 +60,7 @@ class CourseController extends Controller
         return [
             'name' => 'required|string|max:255',
             'description' => 'required|string|max:2000',
-            'duration' => 'required|integer|min:1|max:520',
+            'duration' => 'required|integer|min:1',
             'fee' => 'required|numeric|min:0|max:999999.99',
             'difficulty' => ['required', Rule::in(['Easy', 'Medium', 'Hard'])],
             'is_active' => 'boolean',
