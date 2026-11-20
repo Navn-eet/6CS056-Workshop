@@ -6,7 +6,7 @@
 
 <x-form-textarea name="description" label="Description" :value="$course->description" autocomplete="off" />
 
-<x-form-input name="duration" label="Duration (weeks)" type="number" min="1"
+<x-form-input name="duration" label="Duration (weeks)" type="number" min="1" max="4294967295"
               :value="$course->duration" autocomplete="off" />
 
 <x-form-input name="fee" label="Fee" type="number" step="0.01" min="0"
