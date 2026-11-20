@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Student;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class StudentController extends Controller
 {
@@ -22,7 +24,13 @@ class StudentController extends Controller
 
     public function store(Request $request)
     {
-        $student = Student::create($request->validate($this->rules()));
+        try {
+            $student = Student::create($request->validate($this->rules()));
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([
+                'email' => 'That email is already registered.',
+            ]);
+        }
 
         return redirect()
             ->route('students.index')
@@ -41,7 +49,13 @@ class StudentController extends Controller
 
     public function update(Request $request, Student $student)
     {
-        $student->update($request->validate($this->rules($student)));
+        try {
+            $student->update($request->validate($this->rules($student)));
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([
+                'email' => 'That email is already registered.',
+            ]);
+        }
 
         return redirect()
             ->route('students.show', $student)
