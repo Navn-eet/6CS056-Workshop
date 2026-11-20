@@ -2,15 +2,15 @@
     $course = $course ?? new \App\Models\Course(['is_active' => true]);
 @endphp
 
-<x-form-input name="name" label="Name" :value="$course->name" />
+<x-form-input name="name" label="Name" :value="$course->name" autocomplete="off" />
 
-<x-form-textarea name="description" label="Description" :value="$course->description" />
+<x-form-textarea name="description" label="Description" :value="$course->description" autocomplete="off" />
 
 <x-form-input name="duration" label="Duration (weeks)" type="number" min="1"
-              :value="$course->duration" />
+              :value="$course->duration" autocomplete="off" />
 
 <x-form-input name="fee" label="Fee" type="number" step="0.01" min="0"
-              :value="$course->fee" />
+              :value="$course->fee" autocomplete="off" />
 
 <div class="form-group">
     <label for="difficulty">Difficulty</label>
