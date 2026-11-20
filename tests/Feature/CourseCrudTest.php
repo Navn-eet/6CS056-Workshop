@@ -44,7 +44,7 @@ it('renders the create form', function () {
 
     $response->assertOk()->assertSee('Create Course');
 
-    expect($response->getContent())->toContain('action="/courses"');
+    expect($response->getContent())->toContain('action="'.route('courses.store').'"');
 });
 
 it('stores a valid course with every typed column persisted', function () {
@@ -110,7 +110,7 @@ it('rejects a missing description on store', function () {
     expect(Course::count())->toBe(0);
 });
 
-it('stores an unchecked is_active checkbox as false', function () {
+it('stores a posted is_active of 0 as false', function () {
     $this->post('/courses', coursePayload(['is_active' => '0']))
         ->assertRedirect('/courses');
 
@@ -121,7 +121,28 @@ it('stores an unchecked is_active checkbox as false', function () {
     $this->assertDatabaseHas('courses', ['id' => $course->id, 'is_active' => 0]);
 });
 
+it('renders the hidden is_active 0 before the checkbox so an unchecked box submits', function () {
+    $content = $this->get('/courses/create')->assertOk()->getContent();
+
+    $hiddenAt = strpos($content, '<input type="hidden" name="is_active" value="0">');
+    $checkboxAt = strpos($content, '<input type="checkbox" id="is_active" name="is_active" value="1"');
+
+    expect($hiddenAt)->not->toBeFalse()
+        ->and($checkboxAt)->not->toBeFalse();
+
+    // A browser submits same-named fields in document order and PHP keeps the last
+    // one, so the hidden 0 must precede the checkbox. Reversed, an unchecked box
+    // submits 1 and every course is silently saved active.
+    expect($hiddenAt)->toBeLessThan($checkboxAt);
+});
+
 it('shows a single course', function () {
+    // The requested record is the second row: a detail page that rendered the
+    // first course instead of the bound one would show Intro and fail here.
+    Course::factory()->create([
+        'name' => 'Intro to PHP',
+        'description' => 'A gentle introduction.',
+    ]);
     $course = Course::factory()->create([
         'name' => 'Advanced Laravel',
         'description' => 'Deep dive into the framework internals.',
@@ -133,8 +154,11 @@ it('shows a single course', function () {
 
     expect($response->getContent())
         ->toContain('Advanced Laravel')
-        ->toContain('Deep dive into the framework internals.')
-        ->toContain('Course record #'.$course->id);
+        ->toContain('Deep dive into the framework internals.');
+
+    expect($response->getContent())
+        ->not->toContain('Intro to PHP')
+        ->not->toContain('A gentle introduction.');
 });
 
 it('returns 404 for an unknown course', function () {
@@ -237,9 +261,33 @@ it('accepts a duration of exactly 520 weeks', function () {
     expect(Course::firstOrFail()->duration)->toBe(520);
 });
 
-it('rejects a duration above 520 weeks', function () {
+it('accepts a duration beyond a full year', function () {
+    // 521 weeks is past the old 520 rule ceiling but well inside the
+    // unsignedInteger column, which is the only thing bounding duration now.
+    $this->post('/courses', coursePayload(['duration' => 521]))
+        ->assertRedirect('/courses')
+        ->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('courses', ['duration' => 521]);
+
+    expect(Course::firstOrFail()->duration)->toBe(521);
+});
+
+it('stores a duration of exactly 4294967295, the int unsigned ceiling', function () {
+    // 4294967295 is the largest value an unsignedInteger column accepts. The
+    // rule must let it through: capping below the column rejects a valid row.
+    $this->post('/courses', coursePayload(['duration' => 4294967295]))
+        ->assertRedirect('/courses')
+        ->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('courses', ['duration' => 4294967295]);
+
+    expect(Course::firstOrFail()->duration)->toBe(4294967295);
+});
+
+it('rejects a duration above the int unsigned ceiling on store', function () {
     $response = $this->from('/courses/create')->post('/courses', coursePayload([
-        'duration' => 521,
+        'duration' => 4294967296,
     ]));
 
     $response->assertSessionHasErrors('duration');
@@ -295,4 +343,62 @@ it('deletes a course', function () {
     $this->assertDatabaseMissing('courses', ['id' => $course->id]);
 
     expect(Course::count())->toBe(0);
+});
+
+it('renders the same six course fields on the create and edit forms', function () {
+    $course = Course::factory()->create();
+
+    $fields = ['name', 'description', 'duration', 'fee', 'difficulty', 'is_active'];
+
+    foreach (['/courses/create', "/courses/{$course->id}/edit"] as $url) {
+        $content = $this->get($url)->assertOk()->getContent();
+
+        foreach ($fields as $field) {
+            expect($content)->toContain('name="'.$field.'"');
+        }
+    }
+});
+
+it('posts the edit form through PUT to the update route', function () {
+    $course = Course::factory()->create();
+
+    $content = $this->get("/courses/{$course->id}/edit")->assertOk()->getContent();
+
+    expect($content)
+        ->toContain('action="'.route('courses.update', $course).'"')
+        ->toContain('<input type="hidden" name="_method" value="PUT">');
+});
+
+it('renders the delete component contract on the course list', function () {
+    $course = Course::factory()->create();
+
+    $content = $this->get('/courses')->assertOk()->getContent();
+
+    $start = strpos($content, '<form action="'.route('courses.destroy', $course).'" method="POST"');
+
+    expect($start)->not->toBeFalse();
+
+    $form = substr($content, $start, strpos($content, '</form>', $start) - $start);
+
+    expect($form)
+        ->toContain('name="_token"')
+        ->toContain('<input type="hidden" name="_method" value="DELETE">');
+});
+
+it('renders course validation errors through the extended layout', function () {
+    // The other course tests stop at the session bag. Only a followed redirect renders
+    // the @error block inside the partial, inside @section('content'), inside the slot
+    // that layouts/app hands to the component — the path only the course pages use.
+    $response = $this->followingRedirects()
+        ->from('/courses/create')
+        ->post('/courses', coursePayload(['name' => '']))
+        ->assertOk()
+        ->assertSee('Create Course');
+
+    expect($response->getContent())
+        ->toContain('<p class="error">The name field is required.</p>');
+
+    // Exactly one: a slot that rendered the section twice would show the error
+    // twice, which is what a broken @extends/delegating-layout handoff looks like.
+    expect(substr_count($response->getContent(), '<p class="error">'))->toBe(1);
 });

@@ -7,36 +7,41 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 it('serves the student create form at /students/create, not the parameter route', function () {
-    Student::factory()->count(2)->create();
+    Student::factory()->create(['name' => 'Ada Lovelace']);
 
     $response = $this->get('/students/create');
 
     $response->assertOk()->assertSee('Create Student');
 
-    expect($response->getContent())->not->toContain('Student record #');
+    // The create form, not a detail page for a student named "create".
+    expect($response->getContent())
+        ->toContain('action="'.route('students.store').'"')
+        ->not->toContain('Ada Lovelace');
 });
 
 it('serves the course create form at /courses/create, not the parameter route', function () {
-    Course::factory()->create();
+    Course::factory()->create(['name' => 'Advanced Laravel']);
 
     $response = $this->get('/courses/create');
 
     $response->assertOk()->assertSee('Create Course');
 
-    expect($response->getContent())->not->toContain('Course record #');
+    expect($response->getContent())
+        ->toContain('action="'.route('courses.store').'"')
+        ->not->toContain('Advanced Laravel');
 });
 
 it('still resolves numeric ids through the parameter routes', function () {
-    $student = Student::factory()->create();
-    $course = Course::factory()->create();
+    $student = Student::factory()->create(['name' => 'Ada Lovelace']);
+    $course = Course::factory()->create(['name' => 'Advanced Laravel']);
 
     $this->get("/students/{$student->id}")
         ->assertOk()
-        ->assertSee('Student record #'.$student->id);
+        ->assertSee('Ada Lovelace');
 
     $this->get("/courses/{$course->id}")
         ->assertOk()
-        ->assertSee('Course record #'.$course->id);
+        ->assertSee('Advanced Laravel');
 });
 
 it('returns 404 for a student id with a non-numeric suffix', function () {
