@@ -88,6 +88,36 @@ it('stores a submitted date of birth as a date', function () {
         ->and($student->date_of_birth->format('Y-m-d'))->toBe('2001-02-03');
 });
 
+it('rejects a future date of birth', function () {
+    // Computed, not a calendar date: a hard-coded one stops being in the future
+    // the day it arrives, and the test would then pass for the wrong reason.
+    $tomorrow = Carbon::tomorrow()->toDateString();
+
+    $response = $this->from('/students/create')->post('/students', studentPayload([
+        'date_of_birth' => $tomorrow,
+    ]));
+
+    // The exact message, not just the bag: `date` alone would leave the bag empty
+    // too, but a tightened `before:today` would fill it with different text, and
+    // only this assertion tells the two apart.
+    $response->assertSessionHasErrors([
+        'date_of_birth' => 'The date of birth field must be a date before or equal to today.',
+    ]);
+
+    expect(Student::count())->toBe(0);
+});
+
+it('accepts a date of birth of today, the before_or_equal boundary', function () {
+    // `before:today` would reject this while every other date test still passed.
+    $this->post('/students', studentPayload([
+        'date_of_birth' => Carbon::today()->toDateString(),
+    ]))->assertRedirect('/students')
+        ->assertSessionHasNoErrors();
+
+    expect(Student::firstOrFail()->date_of_birth->format('Y-m-d'))
+        ->toBe(Carbon::today()->toDateString());
+});
+
 it('rejects a student with no name', function () {
     $payload = studentPayload();
     unset($payload['name']);

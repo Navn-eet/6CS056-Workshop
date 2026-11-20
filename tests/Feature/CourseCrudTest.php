@@ -110,7 +110,7 @@ it('rejects a missing description on store', function () {
     expect(Course::count())->toBe(0);
 });
 
-it('stores an unchecked is_active checkbox as false', function () {
+it('stores a posted is_active of 0 as false', function () {
     $this->post('/courses', coursePayload(['is_active' => '0']))
         ->assertRedirect('/courses');
 
@@ -119,6 +119,21 @@ it('stores an unchecked is_active checkbox as false', function () {
     expect($course->is_active)->toBeFalse();
 
     $this->assertDatabaseHas('courses', ['id' => $course->id, 'is_active' => 0]);
+});
+
+it('renders the hidden is_active 0 before the checkbox so an unchecked box submits', function () {
+    $content = $this->get('/courses/create')->assertOk()->getContent();
+
+    $hiddenAt = strpos($content, '<input type="hidden" name="is_active" value="0">');
+    $checkboxAt = strpos($content, '<input type="checkbox" id="is_active" name="is_active" value="1"');
+
+    expect($hiddenAt)->not->toBeFalse()
+        ->and($checkboxAt)->not->toBeFalse();
+
+    // A browser submits same-named fields in document order and PHP keeps the last
+    // one, so the hidden 0 must precede the checkbox. Reversed, an unchecked box
+    // submits 1 and every course is silently saved active.
+    expect($hiddenAt)->toBeLessThan($checkboxAt);
 });
 
 it('shows a single course', function () {
@@ -258,6 +273,28 @@ it('accepts a duration beyond a full year', function () {
     expect(Course::firstOrFail()->duration)->toBe(521);
 });
 
+it('stores a duration of exactly 4294967295, the int unsigned ceiling', function () {
+    // 4294967295 is the largest value an unsignedInteger column accepts. The
+    // rule must let it through: capping below the column rejects a valid row.
+    $this->post('/courses', coursePayload(['duration' => 4294967295]))
+        ->assertRedirect('/courses')
+        ->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('courses', ['duration' => 4294967295]);
+
+    expect(Course::firstOrFail()->duration)->toBe(4294967295);
+});
+
+it('rejects a duration above the int unsigned ceiling on store', function () {
+    $response = $this->from('/courses/create')->post('/courses', coursePayload([
+        'duration' => 4294967296,
+    ]));
+
+    $response->assertSessionHasErrors('duration');
+
+    expect(Course::count())->toBe(0);
+});
+
 it('accepts a fee of zero', function () {
     $this->post('/courses', coursePayload(['fee' => '0']))
         ->assertRedirect('/courses');
@@ -346,4 +383,22 @@ it('renders the delete component contract on the course list', function () {
     expect($form)
         ->toContain('name="_token"')
         ->toContain('<input type="hidden" name="_method" value="DELETE">');
+});
+
+it('renders course validation errors through the extended layout', function () {
+    // The other course tests stop at the session bag. Only a followed redirect renders
+    // the @error block inside the partial, inside @section('content'), inside the slot
+    // that layouts/app hands to the component — the path only the course pages use.
+    $response = $this->followingRedirects()
+        ->from('/courses/create')
+        ->post('/courses', coursePayload(['name' => '']))
+        ->assertOk()
+        ->assertSee('Create Course');
+
+    expect($response->getContent())
+        ->toContain('<p class="error">The name field is required.</p>');
+
+    // Exactly one: a slot that rendered the section twice would show the error
+    // twice, which is what a broken @extends/delegating-layout handoff looks like.
+    expect(substr_count($response->getContent(), '<p class="error">'))->toBe(1);
 });
