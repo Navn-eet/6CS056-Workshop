@@ -1,0 +1,22 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Course extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'description', 'duration', 'fee', 'difficulty', 'is_active'];
+
+    protected function casts(): array
+    {
+        return [
+            'fee' => 'decimal:2',
+            'duration' => 'integer',
+            'is_active' => 'boolean',
+        ];
+    }
+}
