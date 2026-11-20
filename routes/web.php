@@ -1,82 +1,21 @@
 <?php
 
+use App\Http\Controllers\StudentController;
 use App\Models\Course;
-use App\Models\Student;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 Route::pattern('student', '[0-9]+');
 Route::pattern('course', '[0-9]+');
 
-Route::get('/', fn () => view('home'));
+Route::get('/', function () {
+    return view('welcome');
+});
 
-// Static "create" MUST precede the {student} parameter route.
-Route::get('/students', function () {
-    return view('student.list', ['students' => Student::all()]);
-})->name('students.index');
+Route::resource('students', StudentController::class);
 
-Route::get('/students/create', fn () => view('student.create'))->name('students.create');
-
-Route::post('/students', function (Request $request) {
-    $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|email|max:255|unique:students,email',
-        'phone' => 'required|string|max:20',
-        'address' => 'nullable|string|max:500',
-        'date_of_birth' => 'nullable|date',
-    ]);
-
-    try {
-        $student = Student::create($validated);
-    } catch (UniqueConstraintViolationException) {
-        throw ValidationException::withMessages([
-            'email' => 'That email is already registered.',
-        ]);
-    }
-
-    return redirect()
-        ->route('students.index')
-        ->with('success', "Student {$student->name} created successfully!");
-})->name('students.store');
-
-Route::get('/students/{student}', function (Student $student) {
-    return view('student.detail', ['student' => $student]);
-})->name('students.show');
-
-Route::get('/students/{student}/edit', function (Student $student) {
-    return view('student.edit', ['student' => $student]);
-})->name('students.edit');
-
-Route::put('/students/{student}', function (Request $request, Student $student) {
-    $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => ['required', 'email', 'max:255', Rule::unique('students')->ignore($student->id)],
-        'phone' => 'required|string|max:20',
-        'address' => 'nullable|string|max:500',
-        'date_of_birth' => 'nullable|date',
-    ]);
-
-    try {
-        $student->update($validated);
-    } catch (UniqueConstraintViolationException) {
-        throw ValidationException::withMessages([
-            'email' => 'That email is already registered.',
-        ]);
-    }
-
-    return redirect()
-        ->route('students.show', $student)
-        ->with('success', 'Student updated successfully!');
-})->name('students.update');
-
-Route::delete('/students/{student}', function (Student $student) {
-    $student->delete();
-
-    return redirect('/students')->with('success', 'Student deleted successfully!');
-})->name('students.destroy');
+// --- Course routes (Week 1 closures) ---
+// leave untouched until the course controller exists
 
 // Static "create" MUST precede the {course} parameter route.
 Route::get('/courses', function () {
